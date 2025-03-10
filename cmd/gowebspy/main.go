@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,6 +22,15 @@ var (
 	formatJSON   bool
 	traceRoute   bool
 	allInfo      bool
+	useIPv6      bool
+	dualStack    bool
+	filterStatus string
+	filterServer string
+	filterHeader string
+	filterTime   string
+	filterSSL    string
+	filterIP     string
+	filterRegex  string
 )
 
 func init() {
@@ -30,8 +40,19 @@ func init() {
 	rootCmd.Flags().BoolVarP(&showDNS, "dns", "d", false, "Show DNS records")
 	rootCmd.Flags().BoolVarP(&scanPorts, "ports", "p", false, "Scan common ports")
 	rootCmd.Flags().BoolVarP(&formatJSON, "json", "j", false, "Output in JSON format")
-	rootCmd.Flags().BoolVarP(&traceRoute, "trace", "t", false, "Perform simple traceroute")
+	rootCmd.Flags().BoolVarP(&traceRoute, "trace", "t", false, "Perform traceroute")
 	rootCmd.Flags().BoolVarP(&allInfo, "all", "a", false, "Show all information")
+	
+	rootCmd.Flags().BoolVar(&useIPv6, "ipv6", false, "Prefer IPv6 for all operations")
+	rootCmd.Flags().BoolVar(&dualStack, "dual-stack", false, "Check both IPv4 and IPv6 support")
+	
+	rootCmd.Flags().StringVar(&filterStatus, "status", "", "Filter by status code (e.g. 200, 200-299)")
+	rootCmd.Flags().StringVar(&filterServer, "server", "", "Filter by server name (contains)")
+	rootCmd.Flags().StringVar(&filterHeader, "has-header", "", "Filter by header existence (e.g. 'Content-Security-Policy')")
+	rootCmd.Flags().StringVar(&filterTime, "response-time", "", "Filter by response time (e.g. <500ms, >100ms)")
+	rootCmd.Flags().StringVar(&filterSSL, "ssl-days", "", "Filter by SSL days remaining (e.g. >30)")
+	rootCmd.Flags().StringVar(&filterIP, "ip-contains", "", "Filter by IP address (contains)")
+	rootCmd.Flags().StringVar(&filterRegex, "regex", "", "Filter content by regex pattern")
 }
 
 var rootCmd = &cobra.Command{
@@ -50,12 +71,52 @@ including DNS records, HTTP headers, SSL certificates, and more.`,
 			showDNS = true
 			scanPorts = true
 			traceRoute = true
+			dualStack = true
+		}
+		
+		filterOpts := gowebspy.NewFilterOptions()
+		
+		if filterStatus != "" {
+			parseStatusFilter(filterStatus, filterOpts)
+		}
+		
+		if filterServer != "" {
+			filterOpts.ServerContains = filterServer
+		}
+		
+		if filterHeader != "" {
+			filterOpts.HeaderKeyMustExist = append(filterOpts.HeaderKeyMustExist, filterHeader)
+		}
+		
+		if filterTime != "" {
+			parseTimeFilter(filterTime, filterOpts)
+		}
+		
+		if filterSSL != "" {
+			parseSSLFilter(filterSSL, filterOpts)
+		}
+		
+		if filterIP != "" {
+			filterOpts.IPMustMatch = filterIP
+		}
+		
+		if filterRegex != "" {
+			filterOpts.IncludePattern = filterRegex
+		}
+		
+		if useIPv6 {
+			filterOpts.RequireIPv6 = true
 		}
 		
 		info, err := gowebspy.GetWebsiteInfo(url)
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 			os.Exit(1)
+		}
+		
+		if !gowebspy.ApplyFilter(info, filterOpts) {
+			fmt.Println("Website does not match the specified filters.")
+			os.Exit(0)
 		}
 		
 		if formatJSON {
@@ -82,13 +143,80 @@ including DNS records, HTTP headers, SSL certificates, and more.`,
 		}
 		
 		if scanPorts {
-			printPortScan(url)
+			if useIPv6 {
+				printPortScanIPv6(url)
+			} else {
+				printPortScan(url)
+			}
 		}
 		
 		if traceRoute {
-			printTraceroute(url)
+			if useIPv6 {
+				printTracerouteIPv6(url)
+			} else {
+				printTraceroute(url)
+			}
+		}
+		
+		if dualStack {
+			printDualStackSupport(url)
 		}
 	},
+}
+
+func parseStatusFilter(filter string, opts *gowebspy.FilterOptions) {
+	if strings.Contains(filter, "-") {
+		parts := strings.Split(filter, "-")
+		if len(parts) == 2 {
+			min, err1 := strconv.Atoi(strings.TrimSpace(parts[0]))
+			max, err2 := strconv.Atoi(strings.TrimSpace(parts[1]))
+			if err1 == nil && err2 == nil {
+				opts.MinStatusCode = min
+				opts.MaxStatusCode = max
+			}
+		}
+	} else if strings.HasPrefix(filter, ">") {
+		val, err := strconv.Atoi(strings.TrimSpace(filter[1:]))
+		if err == nil {
+			opts.MinStatusCode = val + 1
+		}
+	} else if strings.HasPrefix(filter, "<") {
+		val, err := strconv.Atoi(strings.TrimSpace(filter[1:]))
+		if err == nil {
+			opts.MaxStatusCode = val - 1
+		}
+	} else {
+		val, err := strconv.Atoi(strings.TrimSpace(filter))
+		if err == nil {
+			opts.MinStatusCode = val
+			opts.MaxStatusCode = val
+		}
+	}
+}
+
+func parseTimeFilter(filter string, opts *gowebspy.FilterOptions) {
+	if strings.HasPrefix(filter, "<") {
+		duration, err := time.ParseDuration(strings.TrimSpace(filter[1:]))
+		if err == nil {
+			opts.MaxResponseTime = duration
+		}
+	} else if strings.HasPrefix(filter, ">") {
+		duration, err := time.ParseDuration(strings.TrimSpace(filter[1:]))
+		if err == nil {
+			opts.MinResponseTime = duration
+		}
+	}
+}
+
+func parseSSLFilter(filter string, opts *gowebspy.FilterOptions) {
+	if filter == "valid" {
+		opts.SSLMustBeValid = true
+	} else if strings.HasPrefix(filter, ">") {
+		days, err := strconv.Atoi(strings.TrimSpace(filter[1:]))
+		if err == nil {
+			opts.SSLMinDaysRemaining = days
+		}
+	}
 }
 
 func outputJSON(info *gowebspy.WebsiteInfo) {
@@ -250,6 +378,14 @@ func printDNSRecords(domain string) {
 		valueColor(strings.Join(values, ", "))
 	}
 	
+	if useIPv6 {
+		ipv6Records, _ := gowebspy.GetIPv6DNSRecords(domain)
+		for recordType, values := range ipv6Records {
+			keyColor(recordType + " Records: ")
+			valueColor(strings.Join(values, ", "))
+		}
+	}
+	
 	fmt.Println()
 }
 
@@ -258,11 +394,34 @@ func printPortScan(host string) {
 	
 	titleColor := color.New(color.FgHiRed, color.Bold).PrintlnFunc()
 	
-	titleColor("PORT SCAN")
+	titleColor("PORT SCAN (IPv4)")
 	fmt.Println(strings.Repeat("=", 50))
 	
 	commonPorts := []int{21, 22, 23, 25, 53, 80, 110, 143, 443, 465, 587, 993, 995, 3306, 5432, 8080, 8443}
 	results := gowebspy.PortScan(host, commonPorts)
+	
+	for port, open := range results {
+		portName := getPortName(port)
+		if open {
+			color.New(color.FgHiGreen).Printf("✓ Port %d (%s): Open\n", port, portName)
+		} else {
+			color.New(color.FgHiRed).Printf("✗ Port %d (%s): Closed\n", port, portName)
+		}
+	}
+	
+	fmt.Println()
+}
+
+func printPortScanIPv6(host string) {
+	host = extractDomain(host)
+	
+	titleColor := color.New(color.FgHiRed, color.Bold).PrintlnFunc()
+	
+	titleColor("PORT SCAN (IPv6)")
+	fmt.Println(strings.Repeat("=", 50))
+	
+	commonPorts := []int{21, 22, 23, 25, 53, 80, 110, 143, 443, 465, 587, 993, 995, 3306, 5432, 8080, 8443}
+	results := gowebspy.PortScanIPv6(host, commonPorts)
 	
 	for port, open := range results {
 		portName := getPortName(port)
@@ -281,7 +440,7 @@ func printTraceroute(host string) {
 	
 	titleColor := color.New(color.FgHiCyan, color.Bold).PrintlnFunc()
 	
-	titleColor("TRACEROUTE")
+	titleColor("TRACEROUTE (IPv4)")
 	fmt.Println(strings.Repeat("=", 50))
 	
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -294,7 +453,81 @@ func printTraceroute(host string) {
 	}
 	
 	for _, hop := range hops {
-		fmt.Printf("%2d  %s  %s\n", hop.Number, hop.IP, hop.RTT)
+		if hop.Host != "" {
+			fmt.Printf("%2d  %s (%s)  %s\n", hop.Number, hop.IP, hop.Host, hop.RTT)
+		} else {
+			fmt.Printf("%2d  %s  %s\n", hop.Number, hop.IP, hop.RTT)
+		}
+	}
+	
+	fmt.Println()
+}
+
+func printTracerouteIPv6(host string) {
+	host = extractDomain(host)
+	
+	titleColor := color.New(color.FgHiCyan, color.Bold).PrintlnFunc()
+	
+	titleColor("TRACEROUTE (IPv6)")
+	fmt.Println(strings.Repeat("=", 50))
+	
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	
+	hops, err := gowebspy.TracerouteIPv6(ctx, host, 30)
+	if err != nil {
+		fmt.Printf("Error performing IPv6 traceroute: %v\n", err)
+		return
+	}
+	
+	for _, hop := range hops {
+		if hop.Host != "" {
+			fmt.Printf("%2d  %s (%s)  %s\n", hop.Number, hop.IP, hop.Host, hop.RTT)
+		} else {
+			fmt.Printf("%2d  %s  %s\n", hop.Number, hop.IP, hop.RTT)
+		}
+	}
+	
+	fmt.Println()
+}
+
+func printDualStackSupport(domain string) {
+	domain = extractDomain(domain)
+	
+	titleColor := color.New(color.FgHiCyan, color.Bold).PrintlnFunc()
+	
+	titleColor("DUAL STACK SUPPORT")
+	fmt.Println(strings.Repeat("=", 50))
+	
+	isDualStack, err := gowebspy.CheckDualStack(domain)
+	if err != nil {
+		fmt.Printf("Error checking dual stack: %v\n", err)
+		return
+	}
+	
+	ipInfo, _ := gowebspy.GetIPAddresses(domain)
+	
+	fmt.Printf("IPv4 Support: ")
+	if len(ipInfo.IPv4Addresses) > 0 {
+		color.New(color.FgHiGreen).Println("Yes")
+		fmt.Printf("IPv4 Addresses: %s\n", strings.Join(ipInfo.IPv4Addresses, ", "))
+	} else {
+		color.New(color.FgHiRed).Println("No")
+	}
+	
+	fmt.Printf("IPv6 Support: ")
+	if len(ipInfo.IPv6Addresses) > 0 {
+		color.New(color.FgHiGreen).Println("Yes")
+		fmt.Printf("IPv6 Addresses: %s\n", strings.Join(ipInfo.IPv6Addresses, ", "))
+	} else {
+		color.New(color.FgHiRed).Println("No")
+	}
+	
+	fmt.Printf("Dual Stack: ")
+	if isDualStack {
+		color.New(color.FgHiGreen).Println("Yes")
+	} else {
+		color.New(color.FgHiRed).Println("No")
 	}
 	
 	fmt.Println()

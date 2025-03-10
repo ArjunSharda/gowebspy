@@ -1,7 +1,6 @@
 package gowebspy
 
 import (
-	"net/http"
 	"regexp"
 	"strings"
 	"time"
@@ -122,7 +121,6 @@ func ApplyFilter(info *WebsiteInfo, opts *FilterOptions) bool {
 		}
 	}
 	
-
 	if opts.ExcludePattern != "" {
 		re, err := regexp.Compile(opts.ExcludePattern)
 		if err == nil && (re.MatchString(info.Title) || re.MatchString(info.MetaDescription)) {

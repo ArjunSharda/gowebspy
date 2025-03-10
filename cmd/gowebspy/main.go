@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/ArjunSharda/gowebspy/pkg/gowebspy"
@@ -175,8 +174,12 @@ func printSSLInfo(sslInfo *gowebspy.SSLInfo) {
 	
 	keyColor("Alternative Names: ")
 	if len(sslInfo.DNSNames) > 0 {
-		valueColor(strings.Join(sslInfo.DNSNames[:min(5, len(sslInfo.DNSNames))], ", ") + 
-			(len(sslInfo.DNSNames) > 5 ? "..." : ""))
+		maxNames := min(5, len(sslInfo.DNSNames))
+		suffix := ""
+		if len(sslInfo.DNSNames) > 5 {
+			suffix = "..."
+		}
+		valueColor(strings.Join(sslInfo.DNSNames[:maxNames], ", ") + suffix)
 	} else {
 		valueColor("None")
 	}

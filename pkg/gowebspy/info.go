@@ -239,50 +239,7 @@ func CheckHTTPRedirects(rawURL string) ([]string, error) {
 	return redirects, nil
 }
 
-type TracerouteHop struct {
-	Number int
-	IP     string
-	RTT    time.Duration
-}
 
-func SimpleTraceroute(ctx context.Context, host string, maxHops int) ([]TracerouteHop, error) {
-	var hops []TracerouteHop
-
-	ips, err := net.LookupIP(host)
-	if err != nil {
-		return hops, fmt.Errorf("couldn't resolve host: %w", err)
-	}
-	
-	targetIP := ips[0].String()
-	
-
-	intermediateHops := min(maxHops-1, 3)
-
-	
-	hops = append(hops, TracerouteHop{
-		Number: 1,
-		IP:     "192.168.1.1",
-		RTT:    10 * time.Millisecond,
-	})
-	
-
-	for i := 2; i <= intermediateHops; i++ {
-		hops = append(hops, TracerouteHop{
-			Number: i,
-			IP:     fmt.Sprintf("10.%d.%d.%d", i*20, i*5, i*3),
-			RTT:    time.Duration(i*15) * time.Millisecond,
-		})
-	}
-	
-
-	hops = append(hops, TracerouteHop{
-		Number: len(hops) + 1,
-		IP:     targetIP,
-		RTT:    time.Duration(intermediateHops*20+30) * time.Millisecond,
-	})
-	
-	return hops, nil
-}
 
 
 func min(a, b int) int {

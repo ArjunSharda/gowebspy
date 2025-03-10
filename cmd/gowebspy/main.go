@@ -8,7 +8,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ArjunShardahey/gowebspy/pkg/gowebspy"
+	"github.com/ArjunSharda/gowebspy/pkg/gowebspy"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )

@@ -36,27 +36,29 @@ func NewFilterOptions() *FilterOptions {
 }
 
 func ApplyFilter(info *WebsiteInfo, opts *FilterOptions) bool {
-	if opts.MinStatusCode > 0 && info.StatusCode < opts.MinStatusCode {
-		return false
-	}
-	if opts.MaxStatusCode < 999 && info.StatusCode > opts.MaxStatusCode {
+	// Status code range check
+	if info.StatusCode < opts.MinStatusCode || info.StatusCode > opts.MaxStatusCode {
 		return false
 	}
 	
+	// Server name check
 	if opts.ServerContains != "" && !strings.Contains(strings.ToLower(info.ServerInfo), strings.ToLower(opts.ServerContains)) {
 		return false
 	}
 	
+	// Response time range check
 	if info.ResponseTime < opts.MinResponseTime || info.ResponseTime > opts.MaxResponseTime {
 		return false
 	}
 	
+	// Headers must exist check
 	for _, headerKey := range opts.HeaderKeyMustExist {
 		if _, exists := info.Headers[headerKey]; !exists {
 			return false
 		}
 	}
 	
+	// Header value patterns check
 	for key, pattern := range opts.HeaderValueMatches {
 		values, exists := info.Headers[key]
 		if !exists {
@@ -76,26 +78,28 @@ func ApplyFilter(info *WebsiteInfo, opts *FilterOptions) bool {
 		}
 	}
 	
+	// SSL checks
 	if info.SSLInfo != nil {
 		if opts.SSLMustBeValid && !info.SSLInfo.Valid {
 			return false
 		}
 		
 		if opts.SSLMinDaysRemaining > 0 {
-			// Fixed: Use time.Until instead of t.Sub(time.Now())
 			daysLeft := int(time.Until(info.SSLInfo.Expiry).Hours() / 24)
 			if daysLeft < opts.SSLMinDaysRemaining {
 				return false
 			}
 		}
-	} else if opts.SSLMustBeValid {
+	} else if opts.SSLMustBeValid || opts.SSLMinDaysRemaining > 0 {
 		return false
 	}
 	
+	// Content type check
 	if opts.ContentTypeMustMatch != "" && !strings.Contains(info.ContentType, opts.ContentTypeMustMatch) {
 		return false
 	}
 	
+	// IP address match
 	if opts.IPMustMatch != "" {
 		found := false
 		for _, ip := range info.IP {
@@ -109,6 +113,7 @@ func ApplyFilter(info *WebsiteInfo, opts *FilterOptions) bool {
 		}
 	}
 	
+	// IPv6 requirement
 	if opts.RequireIPv6 {
 		hasIPv6 := false
 		for _, ip := range info.IP {
@@ -122,6 +127,7 @@ func ApplyFilter(info *WebsiteInfo, opts *FilterOptions) bool {
 		}
 	}
 	
+	// Pattern matching
 	if opts.ExcludePattern != "" {
 		re, err := regexp.Compile(opts.ExcludePattern)
 		if err == nil && (re.MatchString(info.Title) || re.MatchString(info.MetaDescription)) {

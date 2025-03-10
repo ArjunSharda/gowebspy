@@ -1,7 +1,6 @@
 package gowebspy
 
 import (
-	"context"
 	"fmt"
 	"net"
 	"strings"
@@ -44,11 +43,9 @@ func PortScanIPv6(host string, ports []int) map[int]bool {
 			return results
 		}
 		
-
 		host = ipInfo.IPv6Addresses[0]
 	}
 	
-
 	if strings.Contains(host, ":") && !strings.HasPrefix(host, "[") {
 		host = "[" + host + "]"
 	}
@@ -67,25 +64,21 @@ func PortScanIPv6(host string, ports []int) map[int]bool {
 	return results
 }
 
-
 func CheckDualStack(domain string) (bool, error) {
 	ipInfo, err := GetIPAddresses(domain)
 	if err != nil {
 		return false, err
 	}
 	
-
 	hasIPv4 := len(ipInfo.IPv4Addresses) > 0
 	hasIPv6 := len(ipInfo.IPv6Addresses) > 0
 	
 	return hasIPv4 && hasIPv6, nil
 }
 
-
 func GetIPv6DNSRecords(domain string) (map[string][]string, error) {
 	records := map[string][]string{}
 	
-
 	aaaaRecords, err := net.LookupIP(domain)
 	if err == nil {
 		var ipv6Records []string
@@ -100,24 +93,4 @@ func GetIPv6DNSRecords(domain string) (map[string][]string, error) {
 	}
 	
 	return records, nil
-}
-
-
-func TracerouteIPv6(ctx context.Context, host string, maxHops int) ([]TracerouteHop, error) {
-	var cmd *exec.Cmd
-	
-
-	if isWindows() {
-		cmd = exec.CommandContext(ctx, "tracert", "-6", "-d", "-h", strconv.Itoa(maxHops), host)
-	} else {
-		cmd = exec.CommandContext(ctx, "traceroute6", "-n", "-m", strconv.Itoa(maxHops), host)
-	}
-	
-	output, err := cmd.Output()
-	if err != nil {
-		return nil, fmt.Errorf("IPv6 traceroute command failed: %w", err)
-	}
-	
-
-	return parseTracerouteOutput(string(output)), nil
 }

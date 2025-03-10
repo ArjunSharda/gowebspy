@@ -82,7 +82,8 @@ func ApplyFilter(info *WebsiteInfo, opts *FilterOptions) bool {
 		}
 		
 		if opts.SSLMinDaysRemaining > 0 {
-			daysLeft := int(info.SSLInfo.Expiry.Sub(time.Now()).Hours() / 24)
+			// Fixed: Use time.Until instead of t.Sub(time.Now())
+			daysLeft := int(time.Until(info.SSLInfo.Expiry).Hours() / 24)
 			if daysLeft < opts.SSLMinDaysRemaining {
 				return false
 			}

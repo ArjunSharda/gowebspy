@@ -28,10 +28,12 @@ func TestApplyFilter(t *testing.T) {
 		},
 	}
 
-	// Add some headers
-	info.Headers.Add("Content-Type", "text/html; charset=UTF-8")
-	info.Headers.Add("Server", "nginx/1.18.0")
-	info.Headers.Add("Strict-Transport-Security", "max-age=31536000")
+	// Add some headers properly
+	info.Headers = http.Header{
+		"Content-Type":              []string{"text/html; charset=UTF-8"},
+		"Server":                    []string{"nginx/1.18.0"},
+		"Strict-Transport-Security": []string{"max-age=31536000"},
+	}
 
 	// Test cases
 	tests := []struct {
@@ -216,14 +218,14 @@ func TestApplyFilter(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			result := ApplyFilter(info, tc.opts)
 			if result != tc.expect {
-				t.Errorf("Expected %v but got %v", tc.expect, result)
+				t.Errorf("Expected %v but got %v for test: %s", tc.expect, result, tc.name)
 			}
 		})
 	}
 }
 
 func TestBatchFilter(t *testing.T) {
-	// Create sample website infos
+	// Create sample website infos with proper setup for IPv6 testing
 	sites := []*WebsiteInfo{
 		{
 			URL:        "https://example1.com",
@@ -231,6 +233,7 @@ func TestBatchFilter(t *testing.T) {
 			ServerInfo: "nginx",
 			IP:         []string{"1.1.1.1"},
 			SSLInfo:    &SSLInfo{Valid: true},
+			Headers:    make(http.Header),
 		},
 		{
 			URL:        "https://example2.com",
@@ -238,13 +241,15 @@ func TestBatchFilter(t *testing.T) {
 			ServerInfo: "Apache",
 			IP:         []string{"2.2.2.2"},
 			SSLInfo:    &SSLInfo{Valid: false},
+			Headers:    make(http.Header),
 		},
 		{
 			URL:        "https://example3.com",
 			StatusCode: 200,
 			ServerInfo: "nginx",
-			IP:         []string{"3.3.3.3", "2001:db8::1"},
+			IP:         []string{"3.3.3.3", "2001:db8::1"}, // This one has IPv6
 			SSLInfo:    &SSLInfo{Valid: true},
+			Headers:    make(http.Header),
 		},
 	}
 
@@ -260,6 +265,11 @@ func TestBatchFilter(t *testing.T) {
 	
 	if len(filtered) != 2 {
 		t.Errorf("Expected 2 results but got %d", len(filtered))
+		// Print the filtered results for debugging
+		for i, site := range filtered {
+			t.Logf("Filtered site %d: %s, status: %d, server: %s", 
+				i, site.URL, site.StatusCode, site.ServerInfo)
+		}
 	}
 
 	// Test with IPv6 requirement
@@ -271,5 +281,11 @@ func TestBatchFilter(t *testing.T) {
 	
 	if len(filteredIPv6) != 1 {
 		t.Errorf("Expected 1 result but got %d", len(filteredIPv6))
+		// Print the IPs to help debug
+		for i, site := range sites {
+			t.Logf("Site %d: %s, IPs: %v", i, site.URL, site.IP)
+		}
+	} else if filteredIPv6[0].URL != "https://example3.com" {
+		t.Errorf("Expected example3.com but got %s", filteredIPv6[0].URL)
 	}
 }

@@ -41,10 +41,6 @@ go mod tidy
 go install ./cmd/gowebspy
 ```
 
-### Binary Releases
-
-Download pre-compiled binaries from the [Releases page](https://github.com/ArjunSharda/gowebspy/releases).
-
 ## 🚀 Usage
 
 ### Command-Line Examples

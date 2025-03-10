@@ -29,7 +29,10 @@ func TestExtractDomainFromURL(t *testing.T) {
 
 func TestPortScan(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("OK"))
+		_, err := w.Write([]byte("OK"))
+		if err != nil {
+			t.Fatalf("Failed to write response: %v", err)
+		}
 	}))
 	defer server.Close()
 
@@ -49,7 +52,10 @@ func TestPortScan(t *testing.T) {
 
 func TestCheckHTTPRedirects(t *testing.T) {
 	finalHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Final destination"))
+		_, err := w.Write([]byte("Final destination"))
+		if err != nil {
+			t.Fatalf("Failed to write response: %v", err)
+		}
 	})
 
 	redirectHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

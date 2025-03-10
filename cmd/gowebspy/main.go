@@ -18,11 +18,9 @@ var (
 	showWhois    bool
 	showDNS      bool
 	scanPorts    bool
-	checkMobile  bool
 	formatJSON   bool
 	traceRoute   bool
 	allInfo      bool
-	checkSpeed   bool
 )
 
 func init() {
@@ -52,7 +50,6 @@ including DNS records, HTTP headers, SSL certificates, and more.`,
 			showDNS = true
 			scanPorts = true
 			traceRoute = true
-			checkSpeed = true
 		}
 		
 		info, err := gowebspy.GetWebsiteInfo(url)
@@ -163,7 +160,7 @@ func printSSLInfo(sslInfo *gowebspy.SSLInfo) {
 	valueColor(sslInfo.Expiry.Format(time.RFC3339))
 	
 	keyColor("Days Until Expiry: ")
-	daysLeft := int(sslInfo.Expiry.Sub(time.Now()).Hours() / 24)
+	daysLeft := int(time.Until(sslInfo.Expiry).Hours() / 24)
 	if daysLeft > 30 {
 		color.New(color.FgHiGreen).Printf("%d days\n", daysLeft)
 	} else if daysLeft > 7 {
@@ -306,7 +303,8 @@ func printTraceroute(host string) {
 func extractDomain(urlStr string) string {
 	urlStr = strings.TrimPrefix(urlStr, "http://")
 	urlStr = strings.TrimPrefix(urlStr, "https://")
-	return strings.Split(urlStr, "/")[0]
+	domainPart := strings.Split(urlStr, "/")[0]
+	return strings.Split(domainPart, ":")[0]
 }
 
 func getPortName(port int) string {
